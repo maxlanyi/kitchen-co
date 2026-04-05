@@ -58,6 +58,7 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false)
   const [picker, setPicker] = useState(null)
   const [pickerText, setPickerText] = useState('')
+  const [assignRecipe, setAssignRecipe] = useState(null) // recipe being assigned from Library
   const [newR, setNewR] = useState({ name:'', description:'', emoji:'🍽️', servings:4, instructions:'', ingredients:[{name:'',amount:'',unit:''}] })
   const [loaded, setLoaded] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -192,7 +193,7 @@ export default function App() {
                     <p style={{ color:C.light, fontSize:'0.68rem', marginBottom:'0.75rem' }}>{r.ingredients.length} ingredients</p>
                     <div style={{ display:'flex', gap:'0.35rem' }}>
                       <Btn variant="outline" onClick={() => { setViewRecipe(r); setViewTab('ingredients') }} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>View</Btn>
-                      <Btn onClick={() => openPicker('dinner', DAYS.find(d => !dinners[d]) || DAYS[0])} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>+ Week</Btn>
+                      <Btn onClick={() => setAssignRecipe(r)} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>+ Week</Btn>
                     </div>
                   </>}
                 </div>
@@ -235,7 +236,43 @@ export default function App() {
           </>}
         </div>
 
-        {/* ── PICKER MODAL ── */}
+        {/* ── ASSIGN RECIPE TO WEEK MODAL (from Library) ── */}
+        {assignRecipe && <Modal onClose={() => setAssignRecipe(null)}>
+          <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'1.25rem' }}>
+            <span style={{ fontSize:'2rem' }}>{assignRecipe.emoji}</span>
+            <div>
+              <h2 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'1.1rem' }}>Where does {assignRecipe.name} go?</h2>
+              <p style={{ color:C.light, fontSize:'0.78rem', marginTop:'0.2rem' }}>Tap a slot to assign it</p>
+            </div>
+          </div>
+          {[
+            { label:'🍽️ Dinners', section:'dinner', map:dinners },
+            { label:"🥗 Lauren's Lunches", section:'lauren', map:laurenLunches },
+            { label:"🥙 Max's Lunches", section:'max', map:maxLunches },
+          ].map(({ label, section, map }) => (
+            <div key={section} style={{ marginBottom:'1.25rem' }}>
+              <p style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.88rem', fontWeight:600, marginBottom:'0.5rem' }}>{label}</p>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.4rem' }}>
+                {DAYS.map(day => {
+                  const cur = map[day]
+                  const isThis = cur === assignRecipe.id
+                  const takenBy = cur && cur !== assignRecipe.id ? (recipes.find(r => r.id === cur)?.name || cur) : null
+                  return (
+                    <button key={day} onClick={() => { assignDay(section, day, assignRecipe.id); setAssignRecipe(null) }}
+                      style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', background:isThis?C.terrabg:C.warm, border:`1px solid ${isThis?'#e8846a':C.border}`, borderRadius:10, padding:'0.55rem 0.7rem', cursor:'pointer', textAlign:'left' }}>
+                      <span style={{ color:isThis?C.terra:C.light, fontSize:'0.65rem', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em' }}>{day.slice(0,3)}</span>
+                      <span style={{ color:isThis?C.terra:takenBy?C.mid:C.light, fontSize:'0.75rem', marginTop:'0.15rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>
+                        {isThis ? '✓ assigned' : takenBy ? `${takenBy.slice(0,14)}${takenBy.length>14?'…':''}` : 'open'}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </Modal>}
+
+        {/* ── PICKER MODAL (from This Week tab) ── */}
         {picker && <Modal onClose={() => { setPicker(null); setPickerText('') }}>
           <h2 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'1.1rem', marginBottom:'0.25rem' }}>
             {picker.section === 'dinner' ? '🍽️ Dinner' : picker.section === 'lauren' ? "🥗 Lauren's Lunch" : "🥙 Max's Lunch"} — {picker.day}
@@ -286,7 +323,7 @@ export default function App() {
           {viewTab === 'instructions' && <div style={{ background:C.warm, borderRadius:12, padding:'1rem', marginBottom:'1rem', minHeight:100 }}>
             {viewRecipe.instructions ? <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:'0.85rem', color:C.mid, lineHeight:1.8, whiteSpace:'pre-line' }}>{viewRecipe.instructions}</p> : <p style={{ color:C.light, fontSize:'0.83rem', fontStyle:'italic', textAlign:'center', paddingTop:'1rem' }}>No instructions added yet.</p>}
           </div>}
-          <Btn onClick={() => { setViewRecipe(null); openPicker('dinner', DAYS.find(d => !dinners[d]) || DAYS[0]) }} style={{ width:'100%', padding:'0.875rem', fontSize:'0.88rem', borderRadius:12 }}>+ Add to a Day This Week</Btn>
+          <Btn onClick={() => { setViewRecipe(null); setAssignRecipe(viewRecipe) }} style={{ width:'100%', padding:'0.875rem', fontSize:'0.88rem', borderRadius:12 }}>+ Add to a Day This Week</Btn>
         </Modal>}
 
         {/* ── ADD RECIPE MODAL ── */}
