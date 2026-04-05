@@ -56,6 +56,7 @@ export default function App() {
   const [viewTab, setViewTab] = useState('ingredients')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [editRecipe, setEditRecipe] = useState(null) // recipe being edited
   const [picker, setPicker] = useState(null)
   const [pickerText, setPickerText] = useState('')
   const [assignRecipe, setAssignRecipe] = useState(null) // recipe being assigned from Library
@@ -116,6 +117,16 @@ export default function App() {
     setRecipes(p => [...p, { ...newR, id:Date.now().toString(), ingredients:newR.ingredients.filter(i=>i.name.trim()) }])
     setShowAdd(false)
     setNewR({ name:'', description:'', emoji:'🍽️', servings:4, instructions:'', ingredients:[{name:'',amount:'',unit:''}] })
+  }
+
+  const saveEdit = () => {
+    if (!editRecipe.name.trim()) return
+    setRecipes(p => p.map(r => r.id === editRecipe.id ? { ...editRecipe, ingredients: editRecipe.ingredients.filter(i => i.name.trim()) } : r))
+    setEditRecipe(null)
+  }
+
+  const updateEditIng = (i, f, v) => {
+    const ings = [...editRecipe.ingredients]; ings[i] = {...ings[i],[f]:v}; setEditRecipe(p => ({...p, ingredients:ings}))
   }
 
   if (!loaded) return (
@@ -193,6 +204,7 @@ export default function App() {
                     <p style={{ color:C.light, fontSize:'0.68rem', marginBottom:'0.75rem' }}>{r.ingredients.length} ingredients</p>
                     <div style={{ display:'flex', gap:'0.35rem' }}>
                       <Btn variant="outline" onClick={() => { setViewRecipe(r); setViewTab('ingredients') }} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>View</Btn>
+                      <Btn variant="outline" onClick={() => setEditRecipe({ ...r, ingredients: [...r.ingredients] })} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>Edit</Btn>
                       <Btn onClick={() => setAssignRecipe(r)} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>+ Week</Btn>
                     </div>
                   </>}
@@ -324,6 +336,30 @@ export default function App() {
             {viewRecipe.instructions ? <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:'0.85rem', color:C.mid, lineHeight:1.8, whiteSpace:'pre-line' }}>{viewRecipe.instructions}</p> : <p style={{ color:C.light, fontSize:'0.83rem', fontStyle:'italic', textAlign:'center', paddingTop:'1rem' }}>No instructions added yet.</p>}
           </div>}
           <Btn onClick={() => { setViewRecipe(null); setAssignRecipe(viewRecipe) }} style={{ width:'100%', padding:'0.875rem', fontSize:'0.88rem', borderRadius:12 }}>+ Add to a Day This Week</Btn>
+        </Modal>}
+
+        {/* ── EDIT RECIPE MODAL ── */}
+        {editRecipe && <Modal onClose={() => setEditRecipe(null)}>
+          <h2 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'1.25rem', marginBottom:'1rem' }}>Edit Recipe</h2>
+          <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.5rem' }}>
+            <input value={editRecipe.emoji} onChange={e => setEditRecipe(p=>({...p,emoji:e.target.value}))} style={{ ...inp, width:50, textAlign:'center', fontSize:'1.2rem' }} />
+            <input value={editRecipe.name} onChange={e => setEditRecipe(p=>({...p,name:e.target.value}))} placeholder="Recipe name" style={{ ...inp, flex:1 }} />
+          </div>
+          <input value={editRecipe.description} onChange={e => setEditRecipe(p=>({...p,description:e.target.value}))} placeholder="Short description" style={{ ...inp, width:'100%', marginBottom:'0.5rem' }} />
+          <input type="number" value={editRecipe.servings} onChange={e => setEditRecipe(p=>({...p,servings:parseInt(e.target.value)||1}))} placeholder="Servings" style={{ ...inp, width:'100%', marginBottom:'1rem' }} />
+          <p style={{ color:C.mid, fontSize:'0.8rem', fontWeight:500, marginBottom:'0.4rem' }}>Ingredients</p>
+          {editRecipe.ingredients.map((ing, i) => (
+            <div key={i} style={{ display:'flex', gap:'0.4rem', marginBottom:'0.4rem' }}>
+              <input value={ing.amount} onChange={e => updateEditIng(i,'amount',e.target.value)} placeholder="Qty" style={{ ...inp, width:48, textAlign:'center' }} />
+              <input value={ing.unit} onChange={e => updateEditIng(i,'unit',e.target.value)} placeholder="Unit" style={{ ...inp, width:62 }} />
+              <input value={ing.name} onChange={e => updateEditIng(i,'name',e.target.value)} placeholder="Ingredient" style={{ ...inp, flex:1 }} />
+              <button onClick={() => setEditRecipe(p => ({...p, ingredients: p.ingredients.filter((_,j)=>j!==i)}))} style={{ background:'none', border:'none', color:'#ccc', fontSize:'1rem', cursor:'pointer', flexShrink:0, padding:'0 0.2rem' }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => setEditRecipe(p=>({...p,ingredients:[...p.ingredients,{name:'',amount:'',unit:''}]}))} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.8rem', fontFamily:"'DM Sans',sans-serif", marginBottom:'1.25rem', padding:0, cursor:'pointer' }}>+ Add ingredient</button>
+          <p style={{ color:C.mid, fontSize:'0.8rem', fontWeight:500, marginBottom:'0.4rem' }}>Instructions <span style={{ color:C.light, fontWeight:400 }}>(optional)</span></p>
+          <textarea value={editRecipe.instructions} onChange={e => setEditRecipe(p=>({...p,instructions:e.target.value}))} rows={5} style={{ ...inp, width:'100%', lineHeight:1.6, marginBottom:'1.25rem', resize:'vertical' }} />
+          <Btn onClick={saveEdit} disabled={!editRecipe.name.trim()} style={{ width:'100%', padding:'0.875rem', fontSize:'0.88rem', borderRadius:12, opacity:!editRecipe.name.trim()?0.5:1 }}>Save Changes</Btn>
         </Modal>}
 
         {/* ── ADD RECIPE MODAL ── */}
