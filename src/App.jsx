@@ -46,6 +46,7 @@ function getCategory(name) {
   return 'other'
 }
 
+function buildGrocery(recipes, dinners, customItems) {
   const assignedIds = Object.values(dinners).filter(v => v && recipes.find(r => r.id === v))
   const map = {}
   for (const r of recipes.filter(r => assignedIds.includes(r.id))) {
