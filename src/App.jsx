@@ -25,7 +25,27 @@ const SAMPLE = [
     ingredients:[{name:'Chicken breasts',amount:'1.5',unit:'lbs'},{name:'Broccoli',amount:'1',unit:'head'},{name:'Bell peppers',amount:'2',unit:''},{name:'Soy sauce',amount:'¼',unit:'cup'},{name:'Garlic',amount:'4',unit:'cloves'},{name:'Sesame oil',amount:'1',unit:'tbsp'},{name:'Vegetable oil',amount:'2',unit:'tbsp'},{name:'White rice',amount:'2',unit:'cups'},{name:'Cornstarch',amount:'2',unit:'tbsp'}]},
 ]
 
-function buildGrocery(recipes, dinners, customItems) {
+const CATEGORIES = [
+  { id:'produce',   label:'Produce',          emoji:'🥬', keywords:['lettuce','spinach','kale','arugula','cabbage','broccoli','cauliflower','celery','carrot','carrots','onion','onions','shallot','shallots','garlic','ginger','pepper','peppers','tomato','tomatoes','zucchini','squash','eggplant','mushroom','mushrooms','corn','potato','potatoes','sweet potato','asparagus','green bean','pea','peas','artichoke','leek','fennel','beet','beets','radish','cucumber','avocado','lemon','lime','orange','apple','pear','banana','strawberr','blueberr','raspberr','blackberr','grape','mango','peach','plum','cherry','melon','watermelon','pineapple','kiwi','fig','date','pomegranate','herbs','parsley','basil','cilantro','dill','mint','rosemary','thyme','oregano','sage','chive','tarragon','scallion','green onion','jalapeño','jalapeno','serrano','habanero','chili','chile','berries'] },
+  { id:'meat',      label:'Meat & Seafood',   emoji:'🥩', keywords:['chicken','beef','pork','lamb','veal','turkey','duck','bison','venison','steak','ground beef','ground pork','ground turkey','ground chicken','sausage','bacon','pancetta','guanciale','prosciutto','salami','pepperoni','ham','chorizo','hot dog','brat','short rib','chuck','sirloin','tenderloin','rib','loin','breast','thigh','drumstick','wing','whole chicken','rotisserie','shrimp','salmon','tuna','cod','tilapia','halibut','sea bass','snapper','mahi','trout','scallop','lobster','crab','clam','mussel','oyster','anchovy','sardine','squid','octopus','fish','seafood','filet','fillet'] },
+  { id:'dairy',     label:'Dairy & Eggs',     emoji:'🥛', keywords:['milk','cream','half and half','butter','ghee','egg','eggs','cheese','parmesan','parmigiano','pecorino','mozzarella','ricotta','cheddar','gouda','brie','feta','gorgonzola','gruyere','provolone','swiss','american','goat cheese','cream cheese','sour cream','yogurt','greek yogurt','cottage cheese','kefir','whey','buttermilk','heavy cream','whipping cream','crème fraîche','creme fraiche'] },
+  { id:'bakery',    label:'Bakery & Bread',   emoji:'🍞', keywords:['bread','baguette','sourdough','ciabatta','focaccia','pita','naan','tortilla','wrap','roll','bun','bagel','muffin','croissant','pastry','cake','cookie','cracker','breadcrumb','breadcrumbs','panko','flour','cornmeal','oat','oats','granola'] },
+  { id:'pantry',    label:'Pantry & Dry Goods',emoji:'🥫', keywords:['pasta','spaghetti','fettuccine','penne','rigatoni','tagliatelle','linguine','lasagna','orzo','couscous','rice','quinoa','lentil','lentils','bean','beans','chickpea','chickpeas','tomato sauce','marinara','crushed tomato','diced tomato','tomato paste','tomato puree','broth','stock','soup','coconut milk','olive oil','vegetable oil','sesame oil','canola oil','avocado oil','vinegar','balsamic','soy sauce','worcestershire','fish sauce','hot sauce','mustard','ketchup','mayo','mayonnaise','tahini','peanut butter','almond butter','honey','maple syrup','molasses','jam','jelly','canned','jar','can','box','package','dried','salt','pepper','sugar','brown sugar','powder','baking soda','baking powder','vanilla','extract','cornstarch','arrowroot','gelatin','yeast','capers','olive','olives','pickles','relish','salsa','pesto','hummus','tapenade','anchovy paste','tomato','sauce'] },
+  { id:'spices',    label:'Spices & Seasonings',emoji:'🌶️', keywords:['cumin','coriander','turmeric','paprika','smoked paprika','cayenne','chili powder','red pepper flake','cinnamon','nutmeg','cardamom','clove','allspice','star anise','bay leaf','bay leaves','fennel seed','caraway','mustard seed','celery seed','curry','garam masala','za\'atar','sumac','oregano','thyme','rosemary','sage','marjoram','herbes','seasoning','spice','rub','blend','cajun','italian seasoning','everything bagel','old bay','chinese five spice','black pepper','white pepper','pink salt','sea salt','kosher salt','flaky salt'] },
+  { id:'drinks',    label:'Drinks & Beverages',emoji:'🍷', keywords:['wine','red wine','white wine','prosecco','champagne','beer','lager','ale','stout','spirits','vodka','gin','rum','tequila','whiskey','bourbon','brandy','vermouth','juice','orange juice','apple juice','lemon juice','lime juice','sparkling water','soda','water','coffee','espresso','tea','milk alternative','oat milk','almond milk','soy milk','coconut water'] },
+  { id:'frozen',    label:'Frozen',            emoji:'🧊', keywords:['frozen','ice cream','gelato','sorbet','popsicle','frozen vegetable','frozen fruit','frozen pizza','frozen meal'] },
+  { id:'other',     label:'Other',             emoji:'🛒', keywords:[] },
+]
+
+function getCategory(name) {
+  const lower = name.toLowerCase()
+  for (const cat of CATEGORIES) {
+    if (cat.id === 'other') continue
+    if (cat.keywords.some(kw => lower.includes(kw))) return cat.id
+  }
+  return 'other'
+}
+
   const assignedIds = Object.values(dinners).filter(v => v && recipes.find(r => r.id === v))
   const map = {}
   for (const r of recipes.filter(r => assignedIds.includes(r.id))) {
@@ -63,14 +83,16 @@ export default function App() {
   const [newR, setNewR] = useState({ name:'', description:'', emoji:'🍽️', servings:4, instructions:'', ingredients:[{name:'',amount:'',unit:''}] })
   const [loaded, setLoaded] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [categoryOverrides, setCategoryOverrides] = useState({}) // key -> categoryId
+  const [catPicker, setCatPicker] = useState(null) // grocery item key being re-categorized
 
   // Load all data from Supabase on mount
   useEffect(() => {
     ;(async () => {
       setSyncing(true)
-      const [r, d, ll, ml, c, ci] = await Promise.all([
+      const [r, d, ll, ml, c, ci, co] = await Promise.all([
         dbGet('recipes'), dbGet('dinners'), dbGet('lauren_lunches'),
-        dbGet('max_lunches'), dbGet('checked'), dbGet('custom_items')
+        dbGet('max_lunches'), dbGet('checked'), dbGet('custom_items'), dbGet('cat_overrides')
       ])
       if (r) setRecipes(JSON.parse(r))
       if (d) setDinners(JSON.parse(d))
@@ -78,6 +100,7 @@ export default function App() {
       if (ml) setMaxLunches(JSON.parse(ml))
       if (c) setChecked(JSON.parse(c))
       if (ci) setCustomItems(JSON.parse(ci))
+      if (co) setCategoryOverrides(JSON.parse(co))
       setLoaded(true)
       setSyncing(false)
     })()
@@ -90,6 +113,7 @@ export default function App() {
   useEffect(() => { if (loaded) dbSet('max_lunches', JSON.stringify(maxLunches)) }, [maxLunches, loaded])
   useEffect(() => { if (loaded) dbSet('checked', JSON.stringify(checked)) }, [checked, loaded])
   useEffect(() => { if (loaded) dbSet('custom_items', JSON.stringify(customItems)) }, [customItems, loaded])
+  useEffect(() => { if (loaded) dbSet('cat_overrides', JSON.stringify(categoryOverrides)) }, [categoryOverrides, loaded])
 
   const grocery = buildGrocery(recipes, dinners, customItems)
   const uncheckedG = grocery.filter(i => !checked[i.key])
@@ -238,17 +262,76 @@ export default function App() {
             </div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.875rem' }}>
               <p style={{ color:C.light, fontSize:'0.82rem' }}>{grocery.length === 0 ? 'Plan dinners or add items above' : `${uncheckedG.length} remaining · ${checkedG.length} in basket`}</p>
-              {checkedG.length > 0 && <button onClick={() => setChecked({})} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.78rem', fontFamily:"'DM Sans',sans-serif" }}>Reset all</button>}
+              {checkedG.length > 0 && <button onClick={() => setChecked({})} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.78rem', fontFamily:"'DM Sans',sans-serif", cursor:'pointer' }}>Reset all</button>}
             </div>
             {grocery.length === 0
               ? <Empty emoji="🛒" text="Plan your dinners and your grocery list builds automatically." cta="Plan This Week" onCta={() => setTab(1)} />
-              : <>{uncheckedG.map(item => <GrocRow key={item.key} item={item} chk={false} onToggle={() => toggleChk(item.key)} onRemove={item.custom ? () => removeCustom(item.id) : null} />)}
-                {checkedG.length > 0 && <><p style={{ color:'#ccc', fontSize:'0.72rem', fontStyle:'italic', margin:'1rem 0 0.4rem' }}>In basket</p>{checkedG.map(item => <GrocRow key={item.key} item={item} chk={true} onToggle={() => toggleChk(item.key)} onRemove={item.custom ? () => removeCustom(item.id) : null} />)}</>}
-              </>}
+              : (() => {
+                  // Group unchecked items by category
+                  const grouped = {}
+                  for (const item of uncheckedG) {
+                    const catId = categoryOverrides[item.key] || getCategory(item.name)
+                    if (!grouped[catId]) grouped[catId] = []
+                    grouped[catId].push(item)
+                  }
+                  return <>
+                    {CATEGORIES.filter(cat => grouped[cat.id]?.length > 0).map(cat => (
+                      <div key={cat.id} style={{ marginBottom:'1.25rem' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', marginBottom:'0.4rem', paddingBottom:'0.4rem', borderBottom:`1px solid ${C.border}` }}>
+                          <span style={{ fontSize:'1rem' }}>{cat.emoji}</span>
+                          <p style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.88rem', fontWeight:600 }}>{cat.label}</p>
+                          <span style={{ color:C.light, fontSize:'0.72rem', marginLeft:'auto' }}>{grouped[cat.id].length} item{grouped[cat.id].length!==1?'s':''}</span>
+                        </div>
+                        {grouped[cat.id].map(item => (
+                          <GrocRow key={item.key} item={item} chk={false}
+                            catId={categoryOverrides[item.key] || getCategory(item.name)}
+                            onToggle={() => toggleChk(item.key)}
+                            onRemove={item.custom ? () => removeCustom(item.id) : null}
+                            onCatTap={() => setCatPicker(item)}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                    {checkedG.length > 0 && <>
+                      <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', marginBottom:'0.4rem', paddingBottom:'0.4rem', borderBottom:`1px solid ${C.border}` }}>
+                        <span style={{ fontSize:'1rem' }}>✅</span>
+                        <p style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.88rem', fontWeight:600 }}>In Basket</p>
+                        <span style={{ color:C.light, fontSize:'0.72rem', marginLeft:'auto' }}>{checkedG.length} item{checkedG.length!==1?'s':''}</span>
+                      </div>
+                      {checkedG.map(item => (
+                        <GrocRow key={item.key} item={item} chk={true}
+                          catId={categoryOverrides[item.key] || getCategory(item.name)}
+                          onToggle={() => toggleChk(item.key)}
+                          onRemove={item.custom ? () => removeCustom(item.id) : null}
+                          onCatTap={() => setCatPicker(item)}
+                        />
+                      ))}
+                    </>}
+                  </>
+                })()
+            }
           </>}
         </div>
 
-        {/* ── ASSIGN RECIPE TO WEEK MODAL (from Library) ── */}
+        {/* ── CATEGORY PICKER MODAL ── */}
+        {catPicker && <Modal onClose={() => setCatPicker(null)}>
+          <h2 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'1.1rem', marginBottom:'0.25rem' }}>Move "{catPicker.name}"</h2>
+          <p style={{ color:C.light, fontSize:'0.78rem', marginBottom:'1rem' }}>Which section does this belong in?</p>
+          {CATEGORIES.map(cat => {
+            const current = categoryOverrides[catPicker.key] || getCategory(catPicker.name)
+            const isSelected = current === cat.id
+            return (
+              <button key={cat.id} onClick={() => { setCategoryOverrides(p => ({ ...p, [catPicker.key]: cat.id })); setCatPicker(null) }}
+                style={{ display:'flex', alignItems:'center', gap:'0.75rem', width:'100%', background:isSelected?C.terrabg:C.warm, border:`1px solid ${isSelected?'#e8846a':C.border}`, borderRadius:10, padding:'0.7rem 0.875rem', marginBottom:'0.4rem', cursor:'pointer', textAlign:'left' }}>
+                <span style={{ fontSize:'1.2rem' }}>{cat.emoji}</span>
+                <span style={{ fontFamily:"'DM Sans',sans-serif", color:C.brown, fontSize:'0.88rem', flex:1 }}>{cat.label}</span>
+                {isSelected && <span style={{ color:C.terra, fontSize:'0.8rem', fontWeight:600 }}>✓</span>}
+              </button>
+            )
+          })}
+        </Modal>}
+
+
         {assignRecipe && <Modal onClose={() => setAssignRecipe(null)}>
           <div style={{ display:'flex', alignItems:'center', gap:'0.75rem', marginBottom:'1.25rem' }}>
             <span style={{ fontSize:'2rem' }}>{assignRecipe.emoji}</span>
@@ -418,8 +501,9 @@ function Section({ label, children }) {
   )
 }
 
-function GrocRow({ item, chk, onToggle, onRemove }) {
+function GrocRow({ item, chk, catId, onToggle, onRemove, onCatTap }) {
   const label = item.entries.map(e => [e.amount,e.unit].filter(Boolean).join(' ')).filter(Boolean).join(' + ')
+  const cat = CATEGORIES.find(c => c.id === catId) || CATEGORIES[CATEGORIES.length-1]
   return (
     <div className="gr" style={{ display:'flex', alignItems:'flex-start', gap:'0.75rem', padding:'0.7rem 0.4rem', borderBottom:'1px solid #f0ece6', borderRadius:8, opacity:chk?0.4:1, transition:'opacity 0.15s' }}>
       <div onClick={onToggle} style={{ width:21, height:21, borderRadius:6, border:`1.5px solid ${chk?'#c4603c':'#bfb3a8'}`, background:chk?'#c4603c':'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1, cursor:'pointer', transition:'all 0.15s' }}>
@@ -430,7 +514,10 @@ function GrocRow({ item, chk, onToggle, onRemove }) {
         {label && <span style={{ color:'#c4603c', fontFamily:"'DM Sans',sans-serif", fontSize:'0.8rem', marginLeft:'0.4rem', fontWeight:500 }}>{label}</span>}
         {item.custom ? <p style={{ color:'#bfb3a8', fontSize:'0.7rem', marginTop:'0.1rem' }}>one-off item</p> : item.recipes.length > 0 && <p style={{ color:'#bfb3a8', fontSize:'0.7rem', marginTop:'0.1rem' }}>{item.recipes.join(', ')}</p>}
       </div>
-      {onRemove && <button onClick={onRemove} style={{ background:'none', border:'none', color:'#ddd', fontSize:'0.9rem', flexShrink:0, padding:'0 0.2rem', lineHeight:1 }}>×</button>}
+      <button onClick={onCatTap} title="Change category" style={{ background:'#f5f2ec', border:'1px solid #e8e2da', borderRadius:6, padding:'0.2rem 0.4rem', fontSize:'0.7rem', color:'#7a6a5a', cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:'0.2rem', fontFamily:"'DM Sans',sans-serif" }}>
+        {cat.emoji}
+      </button>
+      {onRemove && <button onClick={onRemove} style={{ background:'none', border:'none', color:'#ddd', fontSize:'0.9rem', flexShrink:0, padding:'0 0.2rem', lineHeight:1, cursor:'pointer' }}>×</button>}
     </div>
   )
 }
