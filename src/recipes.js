@@ -1,6 +1,98 @@
 export const RECIPES = [
   {
-    id: "r1",
+    id: "r33",
+    emoji: "🫓",
+    name: "Quesadilla",
+    description: "Simple chicken quesadillas with Mexican cheese",
+    servings: 4,
+    instructions: "1. Cook chicken tenderloins, season to taste, and slice or shred.\n2. Heat a large skillet over medium heat.\n3. Place a tortilla in the pan, add Mexican cheese and chicken to one half, fold over.\n4. Cook 2–3 minutes per side until golden and cheese is melted.\n5. Slice and serve with salsa, sour cream, or guacamole.",
+    ingredients: [
+      { name: "Chicken tenderloins", amount: "1", unit: "pack" },
+      { name: "Large tortillas", amount: "1", unit: "pack" },
+      { name: "Mexican cheese blend", amount: "1", unit: "bag" }
+    ]
+  },
+  {
+    id: "r34",
+    emoji: "🥖",
+    name: "Chicken Bacon Ranch Sandwich",
+    description: "Italian bread loaded with chicken, bacon, cheddar, and ranch",
+    servings: 4,
+    instructions: "1. Slice Italian bread and toast if desired.\n2. Layer pre-cooked chicken, crispy bacon, and cheddar cheese slices.\n3. Add ranch dressing, lettuce, and tomato if desired.\n4. Serve immediately.",
+    ingredients: [
+      { name: "Italian bread", amount: "1", unit: "loaf" },
+      { name: "Pre-cooked chicken", amount: "1", unit: "pack" },
+      { name: "Bacon", amount: "1", unit: "pack" },
+      { name: "Cheddar cheese slices", amount: "1", unit: "pack" }
+    ]
+  },
+  {
+    id: "r35",
+    emoji: "🌮",
+    name: "Mini Tacos",
+    description: "Slow-cooked salsa chicken on crispy baked mini tortillas with melted cheese",
+    servings: 6,
+    instructions: "1. Place chicken breasts in a slow cooker with one full jar of salsa and taco seasoning. Cook on low for 5.5–6 hours.\n2. Shred the chicken.\n3. Preheat oven. Spray oil on baking sheets and lay out mini tortillas.\n4. Spread Mexican cheese on each tortilla, then top with shredded chicken.\n5. Bake a few minutes until cheese starts to melt.\n6. Fold tortillas closed and bake another 8–12 minutes until crispy.\n7. Serve with remaining salsa.",
+    ingredients: [
+      { name: "Chicken breasts", amount: "1", unit: "pack" },
+      { name: "Mini tortillas", amount: "1", unit: "pack" },
+      { name: "Mexican cheese blend", amount: "1", unit: "pack" },
+      { name: "Taco seasoning", amount: "1", unit: "pack" },
+      { name: "Salsa", amount: "2", unit: "jars" }
+    ]
+  },
+  {
+    id: "r36",
+    emoji: "🍗",
+    name: "Homemade Wings",
+    description: "Crispy air fryer wings — sauce them however you like",
+    servings: 4,
+    instructions: "1. Air fry wings at 400°F for 25 minutes, flipping halfway through.\n2. Toss with your sauce of choice immediately after.\n3. Serve with carrots.",
+    ingredients: [
+      { name: "Chicken wings", amount: "2", unit: "packs" },
+      { name: "Carrots", amount: "1", unit: "pack" },
+      { name: "Wing sauce of choice", amount: "", unit: "to taste" }
+    ]
+  },
+  {
+    id: "r37",
+    emoji: "🍜",
+    name: "Ramen & Edamame Night",
+    description: "Easy weeknight ramen bowls with edamame on the side",
+    servings: 2,
+    instructions: "1. Cook ramen according to package directions.\n2. Prepare frozen edamame according to package directions (microwave or boil).\n3. Serve together.",
+    ingredients: [
+      { name: "Ramen (your choice of flavor)", amount: "2", unit: "packs" },
+      { name: "Frozen edamame", amount: "1", unit: "pack" }
+    ]
+  },
+  {
+    id: "r38",
+    emoji: "🌯",
+    name: "Spicy Crunchy Wraps",
+    description: "Air-fried spicy chicken wraps with cheese and lettuce, finished on the stovetop",
+    servings: 4,
+    instructions: "1. Air fry the spicy chicken according to package directions until cooked through and crispy.\n2. Slice or chop the cooked chicken.\n3. Lay out large tortillas. Add chicken, Mexican cheese, and shredded lettuce.\n4. Wrap tightly, then place seam-side down in a skillet over medium heat for a few minutes until sealed and golden.\n5. Slice and serve.",
+    ingredients: [
+      { name: "Spicy Just Bare chicken (or similar)", amount: "1", unit: "pack" },
+      { name: "Large tortillas", amount: "1", unit: "pack" },
+      { name: "Mexican cheese blend", amount: "1", unit: "pack" },
+      { name: "Shredded lettuce", amount: "1", unit: "pack" }
+    ]
+  },
+  {
+    id: "r39",
+    emoji: "🍝",
+    name: "Spicy Pasta",
+    description: "Rigatoni with pasta sauce and cottage cheese — instructions coming soon",
+    servings: 4,
+    instructions: "Instructions coming soon!",
+    ingredients: [
+      { name: "Rigatoni pasta", amount: "1", unit: "box" },
+      { name: "Pasta sauce", amount: "1", unit: "jar" },
+      { name: "Cottage cheese", amount: "1", unit: "container" }
+    ]
+  },
     emoji: "🍅",
     name: "Grilled Cheese & Tomato Soup",
     description: "Creamy homemade tomato soup with a classic grilled cheese",
