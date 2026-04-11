@@ -1,29 +1,9 @@
 import { useState, useEffect } from 'react'
 import { dbGet, dbSet } from './supabase.js'
+import { RECIPES } from './recipes.js'
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 const C = { bg:'#faf8f4',card:'#fff',warm:'#f5f2ec',border:'#e8e2da',terra:'#c4603c',terrabg:'#fdf0eb',brown:'#3d2b1f',mid:'#7a6a5a',light:'#bfb3a8' }
-
-const SAMPLE = [
-  { id:'1', emoji:'🍋', name:'Chicken Piccata', description:'Classic Italian lemon-caper chicken', servings:4,
-    instructions:'1. Pound chicken thin, season, dredge in flour.\n2. Sear in olive oil + butter 3-4 min per side. Remove.\n3. Add broth and lemon juice, scrape pan. Simmer 2 min.\n4. Stir in capers + remaining butter. Return chicken, coat in sauce.\n5. Top with parsley and serve.',
-    ingredients:[{name:'Chicken breasts',amount:'2',unit:'lbs'},{name:'Lemon',amount:'2',unit:''},{name:'Capers',amount:'3',unit:'tbsp'},{name:'Butter',amount:'4',unit:'tbsp'},{name:'Olive oil',amount:'2',unit:'tbsp'},{name:'Flour',amount:'½',unit:'cup'},{name:'Chicken broth',amount:'½',unit:'cup'},{name:'Parsley',amount:'¼',unit:'cup'}]},
-  { id:'2', emoji:'🍝', name:'Pasta Carbonara', description:'Creamy Roman pasta with egg and guanciale', servings:4,
-    instructions:'1. Boil spaghetti al dente. Reserve 1 cup pasta water.\n2. Cook guanciale until crispy. Remove from heat.\n3. Whisk eggs + Pecorino. Season with lots of black pepper.\n4. Toss hot pasta into pan. Pour egg mixture over, toss adding pasta water until creamy.\n5. Serve immediately.',
-    ingredients:[{name:'Spaghetti',amount:'1',unit:'lb'},{name:'Eggs',amount:'4',unit:''},{name:'Pecorino Romano',amount:'1',unit:'cup'},{name:'Guanciale or bacon',amount:'6',unit:'oz'},{name:'Black pepper',amount:'',unit:'to taste'}]},
-  { id:'3', emoji:'🧀', name:'Chicken Parmesan', description:'Breaded chicken with marinara and melted mozzarella', servings:4,
-    instructions:'1. Pound chicken even. Dredge in flour → egg → breadcrumbs.\n2. Pan-fry in olive oil 3-4 min per side.\n3. Top with marinara, mozzarella, and Parmesan.\n4. Bake at 425°F for 15-18 min until bubbly.\n5. Garnish with fresh basil.',
-    ingredients:[{name:'Chicken breasts',amount:'2',unit:'lbs'},{name:'Marinara sauce',amount:'2',unit:'cups'},{name:'Mozzarella',amount:'8',unit:'oz'},{name:'Parmesan',amount:'½',unit:'cup'},{name:'Breadcrumbs',amount:'1',unit:'cup'},{name:'Eggs',amount:'2',unit:''},{name:'Olive oil',amount:'3',unit:'tbsp'},{name:'Flour',amount:'½',unit:'cup'}]},
-  { id:'4', emoji:'🐓', name:'Herb Roasted Chicken', description:'Whole chicken roasted with lemon and herbs', servings:6,
-    instructions:'1. Pat chicken dry. Preheat oven to 425°F.\n2. Mix butter with garlic, rosemary, thyme. Season well.\n3. Rub butter under and over skin. Stuff cavity with lemon and herbs.\n4. Roast 60-75 min until juices run clear.\n5. Rest 15 min before carving.',
-    ingredients:[{name:'Whole chicken',amount:'4',unit:'lbs'},{name:'Lemon',amount:'2',unit:''},{name:'Garlic',amount:'6',unit:'cloves'},{name:'Rosemary',amount:'3',unit:'sprigs'},{name:'Thyme',amount:'3',unit:'sprigs'},{name:'Butter',amount:'4',unit:'tbsp'},{name:'Olive oil',amount:'2',unit:'tbsp'}]},
-  { id:'5', emoji:'🥩', name:'Bolognese', description:'Slow-cooked Italian meat sauce over tagliatelle', servings:6,
-    instructions:'1. Sauté diced onion, carrot, celery in olive oil 10 min.\n2. Add garlic, then beef and pork. Brown and season.\n3. Add wine, cook until evaporated. Add tomatoes and milk.\n4. Simmer on very low 1.5-2 hours.\n5. Toss with al dente tagliatelle and Parmesan.',
-    ingredients:[{name:'Ground beef',amount:'1',unit:'lb'},{name:'Ground pork',amount:'½',unit:'lb'},{name:'Tagliatelle',amount:'1',unit:'lb'},{name:'Crushed tomatoes',amount:'28',unit:'oz'},{name:'Onion',amount:'1',unit:''},{name:'Carrots',amount:'2',unit:''},{name:'Garlic',amount:'4',unit:'cloves'},{name:'Red wine',amount:'½',unit:'cup'},{name:'Olive oil',amount:'2',unit:'tbsp'},{name:'Parmesan',amount:'½',unit:'cup'}]},
-  { id:'6', emoji:'🥦', name:'Chicken Stir Fry', description:'Quick weeknight chicken with veggies over rice', servings:4,
-    instructions:'1. Cook rice. Toss sliced chicken with cornstarch, salt, pepper.\n2. Sear chicken in oil over high heat 3-4 min. Set aside.\n3. Stir fry broccoli and peppers 3-4 min.\n4. Return chicken. Add garlic, ginger, soy sauce, sesame oil.\n5. Toss 1 min and serve over rice.',
-    ingredients:[{name:'Chicken breasts',amount:'1.5',unit:'lbs'},{name:'Broccoli',amount:'1',unit:'head'},{name:'Bell peppers',amount:'2',unit:''},{name:'Soy sauce',amount:'¼',unit:'cup'},{name:'Garlic',amount:'4',unit:'cloves'},{name:'Sesame oil',amount:'1',unit:'tbsp'},{name:'Vegetable oil',amount:'2',unit:'tbsp'},{name:'White rice',amount:'2',unit:'cups'},{name:'Cornstarch',amount:'2',unit:'tbsp'}]},
-]
 
 const CATEGORIES = [
   { id:'produce',   label:'Produce',          emoji:'🥬', keywords:['lettuce','spinach','kale','arugula','cabbage','broccoli','cauliflower','celery','carrot','carrots','onion','onions','shallot','shallots','garlic','ginger','pepper','peppers','tomato','tomatoes','zucchini','squash','eggplant','mushroom','mushrooms','corn','potato','potatoes','sweet potato','asparagus','green bean','pea','peas','artichoke','leek','fennel','beet','beets','radish','cucumber','avocado','lemon','lime','orange','apple','pear','banana','strawberr','blueberr','raspberr','blackberr','grape','mango','peach','plum','cherry','melon','watermelon','pineapple','kiwi','fig','date','pomegranate','herbs','parsley','basil','cilantro','dill','mint','rosemary','thyme','oregano','sage','chive','tarragon','scallion','green onion','jalapeño','jalapeno','serrano','habanero','chili','chile','berries'] },
@@ -66,7 +46,7 @@ const inp = { background:'#f5f2ec', border:'1px solid #e8e2da', borderRadius:8, 
 
 export default function App() {
   const [tab, setTab] = useState(0)
-  const [recipes, setRecipes] = useState(SAMPLE)
+  const [recipes, setRecipes] = useState(RECIPES)
   const [dinners, setDinners] = useState(Object.fromEntries(DAYS.map(d => [d, null])))
   const [laurenLunches, setLaurenLunches] = useState(Object.fromEntries(DAYS.map(d => [d, null])))
   const [maxLunches, setMaxLunches] = useState(Object.fromEntries(DAYS.map(d => [d, null])))
