@@ -93,6 +93,8 @@ export const RECIPES = [
       { name: "Cottage cheese", amount: "1", unit: "container" }
     ]
   },
+  {
+    id: "r1",
     emoji: "🍅",
     name: "Grilled Cheese & Tomato Soup",
     description: "Creamy homemade tomato soup with a classic grilled cheese",
