@@ -57,7 +57,8 @@ export default function App() {
   const [viewTab, setViewTab] = useState('ingredients')
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
-  const [editRecipe, setEditRecipe] = useState(null) // recipe being edited
+  const [editRecipe, setEditRecipe] = useState(null)
+  const [reorderMode, setReorderMode] = useState(false) // recipe being edited
   const [picker, setPicker] = useState(null)
   const [pickerText, setPickerText] = useState('')
   const [assignRecipe, setAssignRecipe] = useState(null) // recipe being assigned from Library
@@ -116,7 +117,13 @@ export default function App() {
   const toggleChk = key => setChecked(p => ({ ...p, [key]: !p[key] }))
   const addCustom = () => { if (!customInput.trim()) return; setCustomItems(p => [...p, { id:Date.now().toString(), name:customInput.trim() }]); setCustomInput('') }
   const removeCustom = id => { setCustomItems(p => p.filter(x => x.id !== id)); setChecked(p => { const n={...p}; delete n[`custom_${id}`]; return n }) }
-  const updateIng = (i, f, v) => { const ings=[...newR.ingredients]; ings[i]={...ings[i],[f]:v}; setNewR(p=>({...p,ingredients:ings})) }
+  const moveRecipe = (index, dir) => {
+    const newList = [...recipes]
+    const target = index + dir
+    if (target < 0 || target >= newList.length) return
+    ;[newList[index], newList[target]] = [newList[target], newList[index]]
+    setRecipes(newList)
+  }
   const saveRecipe = () => {
     if (!newR.name.trim()) return
     setRecipes(p => [...p, { ...newR, id:Date.now().toString(), ingredients:newR.ingredients.filter(i=>i.name.trim()) }])
@@ -185,37 +192,63 @@ export default function App() {
           {tab === 0 && <>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
               <p style={{ color:C.light, fontSize:'0.82rem' }}>{recipes.length} recipes saved</p>
-              <Btn onClick={() => setShowAdd(true)}>+ Add Recipe</Btn>
+              <div style={{ display:'flex', gap:'0.5rem' }}>
+                <Btn variant={reorderMode ? 'selected' : 'outline'} onClick={() => setReorderMode(p => !p)} style={{ fontSize:'0.78rem', padding:'0.45rem 0.75rem' }}>
+                  {reorderMode ? '✓ Done' : '↕ Reorder'}
+                </Btn>
+                {!reorderMode && <Btn onClick={() => setShowAdd(true)}>+ Add Recipe</Btn>}
+              </div>
             </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
-              {recipes.map(r => (
-                <div key={r.id} className={confirmDelete===r.id?'':'rc'} style={{ background:C.card, borderRadius:16, padding:'1rem', border:`1px solid ${confirmDelete===r.id?'#e8846a':C.border}`, boxShadow:'0 1px 4px rgba(74,55,40,0.05)', transition:'all 0.2s', minHeight:155 }}>
-                  {confirmDelete === r.id ? (
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', minHeight:135, gap:'0.5rem', textAlign:'center' }}>
-                      <span style={{ fontSize:'1.3rem' }}>🗑️</span>
-                      <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:'0.75rem', color:C.mid, lineHeight:1.4 }}>Delete <strong style={{ color:C.brown }}>{r.name}</strong>?</p>
-                      <div style={{ display:'flex', gap:'0.4rem', width:'100%', marginTop:'0.2rem' }}>
-                        <button onClick={() => setConfirmDelete(null)} style={{ flex:1, padding:'0.42rem', borderRadius:8, border:`1px solid ${C.border}`, background:'transparent', fontFamily:"'DM Sans',sans-serif", fontSize:'0.73rem', color:C.mid }}>Cancel</button>
-                        <button onClick={() => { setRecipes(p => p.filter(x => x.id !== r.id)); setConfirmDelete(null) }} style={{ flex:1, padding:'0.42rem', borderRadius:8, border:'none', background:'#c0392b', color:'white', fontFamily:"'DM Sans',sans-serif", fontSize:'0.73rem', fontWeight:500 }}>Delete</button>
+
+            {reorderMode ? (
+              // REORDER MODE — single column list with up/down arrows
+              <div>
+                {recipes.map((r, index) => (
+                  <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'0.75rem', background:C.card, borderRadius:12, padding:'0.75rem', border:`1px solid ${C.border}`, marginBottom:'0.5rem' }}>
+                    <span style={{ fontSize:'1.4rem', flexShrink:0 }}>{r.emoji}</span>
+                    <p style={{ flex:1, fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.88rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
+                    <div style={{ display:'flex', flexDirection:'column', gap:'0.2rem', flexShrink:0 }}>
+                      <button onClick={() => moveRecipe(index, -1)} disabled={index === 0}
+                        style={{ background:index===0?C.warm:C.terrabg, border:`1px solid ${index===0?C.border:'#e8846a'}`, borderRadius:6, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:index===0?'default':'pointer', color:index===0?C.light:C.terra, fontSize:'0.8rem', fontWeight:700 }}>↑</button>
+                      <button onClick={() => moveRecipe(index, 1)} disabled={index === recipes.length - 1}
+                        style={{ background:index===recipes.length-1?C.warm:C.terrabg, border:`1px solid ${index===recipes.length-1?C.border:'#e8846a'}`, borderRadius:6, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:index===recipes.length-1?'default':'pointer', color:index===recipes.length-1?C.light:C.terra, fontSize:'0.8rem', fontWeight:700 }}>↓</button>
+                    </div>
+                  </div>
+                ))}
+                <p style={{ color:C.light, fontSize:'0.78rem', textAlign:'center', marginTop:'0.75rem' }}>Tap ↑ ↓ to reorder · tap Done when finished</p>
+              </div>
+            ) : (
+              // NORMAL GRID MODE
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
+                {recipes.map(r => (
+                  <div key={r.id} className={confirmDelete===r.id?'':'rc'} style={{ background:C.card, borderRadius:16, padding:'1rem', border:`1px solid ${confirmDelete===r.id?'#e8846a':C.border}`, boxShadow:'0 1px 4px rgba(74,55,40,0.05)', transition:'all 0.2s', minHeight:155 }}>
+                    {confirmDelete === r.id ? (
+                      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', minHeight:135, gap:'0.5rem', textAlign:'center' }}>
+                        <span style={{ fontSize:'1.3rem' }}>🗑️</span>
+                        <p style={{ fontFamily:"'DM Sans',sans-serif", fontSize:'0.75rem', color:C.mid, lineHeight:1.4 }}>Delete <strong style={{ color:C.brown }}>{r.name}</strong>?</p>
+                        <div style={{ display:'flex', gap:'0.4rem', width:'100%', marginTop:'0.2rem' }}>
+                          <button onClick={() => setConfirmDelete(null)} style={{ flex:1, padding:'0.42rem', borderRadius:8, border:`1px solid ${C.border}`, background:'transparent', fontFamily:"'DM Sans',sans-serif", fontSize:'0.73rem', color:C.mid }}>Cancel</button>
+                          <button onClick={() => { setRecipes(p => p.filter(x => x.id !== r.id)); setConfirmDelete(null) }} style={{ flex:1, padding:'0.42rem', borderRadius:8, border:'none', background:'#c0392b', color:'white', fontFamily:"'DM Sans',sans-serif", fontSize:'0.73rem', fontWeight:500 }}>Delete</button>
+                        </div>
                       </div>
-                    </div>
-                  ) : <>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.4rem' }}>
-                      <span style={{ fontSize:'1.6rem' }}>{r.emoji}</span>
-                      <button onClick={() => setConfirmDelete(r.id)} style={{ background:'none', border:'none', color:'#ddd', fontSize:'1rem', lineHeight:1, padding:'0 0.2rem' }}>×</button>
-                    </div>
-                    <h3 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.9rem', lineHeight:1.25, marginBottom:'0.25rem' }}>{r.name}</h3>
-                    <p style={{ color:'#9a8a7a', fontSize:'0.72rem', lineHeight:1.4, marginBottom:'0.5rem' }}>{r.description}</p>
-                    <p style={{ color:C.light, fontSize:'0.68rem', marginBottom:'0.75rem' }}>{r.ingredients.length} ingredients</p>
-                    <div style={{ display:'flex', gap:'0.35rem' }}>
-                      <Btn variant="outline" onClick={() => { setViewRecipe(r); setViewTab('ingredients') }} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>View</Btn>
-                      <Btn variant="outline" onClick={() => setEditRecipe({ ...r, ingredients: [...r.ingredients] })} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>Edit</Btn>
-                      <Btn onClick={() => setAssignRecipe(r)} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>+ Week</Btn>
-                    </div>
-                  </>}
-                </div>
-              ))}
-            </div>
+                    ) : <>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.4rem' }}>
+                        <span style={{ fontSize:'1.6rem' }}>{r.emoji}</span>
+                        <button onClick={() => setConfirmDelete(r.id)} style={{ background:'none', border:'none', color:'#ddd', fontSize:'1rem', lineHeight:1, padding:'0 0.2rem' }}>×</button>
+                      </div>
+                      <h3 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.9rem', lineHeight:1.25, marginBottom:'0.25rem' }}>{r.name}</h3>
+                      <p style={{ color:'#9a8a7a', fontSize:'0.72rem', lineHeight:1.4, marginBottom:'0.5rem' }}>{r.description}</p>
+                      <p style={{ color:C.light, fontSize:'0.68rem', marginBottom:'0.75rem' }}>{r.ingredients.length} ingredients</p>
+                      <div style={{ display:'flex', gap:'0.35rem' }}>
+                        <Btn variant="outline" onClick={() => { setViewRecipe(r); setViewTab('ingredients') }} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>View</Btn>
+                        <Btn variant="outline" onClick={() => setEditRecipe({ ...r, ingredients: [...r.ingredients] })} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>Edit</Btn>
+                        <Btn onClick={() => setAssignRecipe(r)} style={{ flex:1, padding:'0.38rem', fontSize:'0.72rem' }}>+ Week</Btn>
+                      </div>
+                    </>}
+                  </div>
+                ))}
+              </div>
+            )}
           </>}
 
           {/* ── THIS WEEK ── */}
@@ -509,7 +542,7 @@ function Pill({ children }) {
 
 function Btn({ onClick, disabled, children, variant='primary', style={} }) {
   const base = { border:'none', borderRadius:10, padding:'0.55rem 1rem', fontFamily:"'DM Sans',sans-serif", fontSize:'0.82rem', fontWeight:500, cursor:disabled?'default':'pointer' }
-  const v = { primary:{ background:'#c4603c', color:'white' }, outline:{ background:'transparent', border:'1px solid #e8e2da', color:'#7a6a5a' } }
+  const v = { primary:{ background:'#c4603c', color:'white' }, outline:{ background:'transparent', border:'1px solid #e8e2da', color:'#7a6a5a' }, selected:{ background:'#fdf0eb', border:'1px solid #e8846a', color:'#c4603c' } }
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...v[variant], ...style }}>{children}</button>
 }
 
