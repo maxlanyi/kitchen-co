@@ -26,8 +26,12 @@ function getCategory(name) {
   return 'other'
 }
 
-function buildGrocery(recipes, dinners, customItems) {
-  const assignedIds = Object.values(dinners).filter(v => v && recipes.find(r => r.id === v))
+function buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems) {
+  const assignedIds = [
+    ...Object.values(dinners),
+    ...Object.values(laurenLunches),
+    ...Object.values(maxLunches)
+  ].filter(v => v && recipes.find(r => r.id === v))
   const map = {}
   for (const r of recipes.filter(r => assignedIds.includes(r.id))) {
     for (const ing of r.ingredients) {
@@ -97,7 +101,7 @@ export default function App() {
   useEffect(() => { if (loaded) dbSet('custom_items', JSON.stringify(customItems)) }, [customItems, loaded])
   useEffect(() => { if (loaded) dbSet('cat_overrides', JSON.stringify(categoryOverrides)) }, [categoryOverrides, loaded])
 
-  const grocery = buildGrocery(recipes, dinners, customItems)
+  const grocery = buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems)
   const uncheckedG = grocery.filter(i => !checked[i.key])
   const checkedG = grocery.filter(i => checked[i.key])
   const mealCount = [...Object.values(dinners), ...Object.values(laurenLunches), ...Object.values(maxLunches)].filter(Boolean).length
