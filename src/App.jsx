@@ -26,23 +26,25 @@ function getCategory(name) {
   return 'other'
 }
 
-function buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems) {
-  const assignedIds = [
+function buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems, deletedIngredients) {
+  const allValues = [
     ...Object.values(dinners),
     ...Object.values(laurenLunches),
     ...Object.values(maxLunches)
-  ].filter(v => v && recipes.find(r => r.id === v))
+  ].flat()
+  const assignedIds = allValues.filter(v => v && recipes.find(r => r.id === v))
   const map = {}
   for (const r of recipes.filter(r => assignedIds.includes(r.id))) {
     for (const ing of r.ingredients) {
       const key = ing.name.toLowerCase().trim()
+      if (deletedIngredients[key]) continue
       if (!map[key]) map[key] = { name:ing.name, entries:[], recipes:[] }
       map[key].entries.push({ amount:ing.amount, unit:ing.unit })
       if (!map[key].recipes.includes(r.name)) map[key].recipes.push(r.name)
     }
   }
   const recipeItems = Object.entries(map).map(([key,v]) => ({ key, ...v, custom:false })).sort((a,b) => a.name.localeCompare(b.name))
-  const custom = customItems.map(ci => ({ key:`custom_${ci.id}`, name:ci.name, entries:[], recipes:[], custom:true, id:ci.id }))
+  const custom = customItems.filter(ci => !deletedIngredients[`custom_${ci.id}`]).map(ci => ({ key:`custom_${ci.id}`, name:ci.name, entries:[], recipes:[], custom:true, id:ci.id }))
   return [...recipeItems, ...custom]
 }
 
@@ -69,16 +71,18 @@ export default function App() {
   const [newR, setNewR] = useState({ name:'', description:'', emoji:'🍽️', servings:4, instructions:'', ingredients:[{name:'',amount:'',unit:''}] })
   const [loaded, setLoaded] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [categoryOverrides, setCategoryOverrides] = useState({}) // key -> categoryId
-  const [catPicker, setCatPicker] = useState(null) // grocery item key being re-categorized
+  const [categoryOverrides, setCategoryOverrides] = useState({})
+  const [catPicker, setCatPicker] = useState(null)
+  const [deletedIngredients, setDeletedIngredients] = useState({}) // key -> true
+  const [librarySearch, setLibrarySearch] = useState('')
 
   // Load all data from Supabase on mount
   useEffect(() => {
     ;(async () => {
       setSyncing(true)
-      const [r, d, ll, ml, c, ci, co] = await Promise.all([
+      const [r, d, ll, ml, c, ci, co, di] = await Promise.all([
         dbGet('recipes'), dbGet('dinners'), dbGet('lauren_lunches'),
-        dbGet('max_lunches'), dbGet('checked'), dbGet('custom_items'), dbGet('cat_overrides')
+        dbGet('max_lunches'), dbGet('checked'), dbGet('custom_items'), dbGet('cat_overrides'), dbGet('deleted_ings')
       ])
       if (r) setRecipes(JSON.parse(r))
       if (d) setDinners(JSON.parse(d))
@@ -87,6 +91,7 @@ export default function App() {
       if (c) setChecked(JSON.parse(c))
       if (ci) setCustomItems(JSON.parse(ci))
       if (co) setCategoryOverrides(JSON.parse(co))
+      if (di) setDeletedIngredients(JSON.parse(di))
       setLoaded(true)
       setSyncing(false)
     })()
@@ -100,27 +105,59 @@ export default function App() {
   useEffect(() => { if (loaded) dbSet('checked', JSON.stringify(checked)) }, [checked, loaded])
   useEffect(() => { if (loaded) dbSet('custom_items', JSON.stringify(customItems)) }, [customItems, loaded])
   useEffect(() => { if (loaded) dbSet('cat_overrides', JSON.stringify(categoryOverrides)) }, [categoryOverrides, loaded])
+  useEffect(() => { if (loaded) dbSet('deleted_ings', JSON.stringify(deletedIngredients)) }, [deletedIngredients, loaded])
 
-  const grocery = buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems)
+  const grocery = buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems, deletedIngredients)
   const uncheckedG = grocery.filter(i => !checked[i.key])
   const checkedG = grocery.filter(i => checked[i.key])
-  const mealCount = [...Object.values(dinners), ...Object.values(laurenLunches), ...Object.values(maxLunches)].filter(Boolean).length
+  const mealCount = [
+    ...Object.values(dinners).flat(),
+    ...Object.values(laurenLunches).flat(),
+    ...Object.values(maxLunches).flat()
+  ].filter(Boolean).length
 
   const assignDay = (section, day, value) => {
-    if (section === 'dinner') setDinners(p => ({ ...p, [day]: value }))
-    else if (section === 'lauren') setLaurenLunches(p => ({ ...p, [day]: value }))
-    else setMaxLunches(p => ({ ...p, [day]: value }))
-    setPicker(null); setPickerText('')
+    const updater = prev => {
+      const cur = prev[day]
+      // If it's an array already, toggle the value in/out
+      if (Array.isArray(cur)) {
+        return cur.includes(value) ? { ...prev, [day]: cur.filter(v => v !== value) } : { ...prev, [day]: [...cur, value] }
+      }
+      // If there's already a single value, convert to array
+      if (cur && cur !== value) return { ...prev, [day]: [cur, value] }
+      // If same value, deselect; if null, set
+      return { ...prev, [day]: cur === value ? null : value }
+    }
+    if (section === 'dinner') setDinners(updater)
+    else if (section === 'lauren') setLaurenLunches(updater)
+    else setMaxLunches(updater)
+    // Don't close picker — let user pick multiple
   }
+
   const clearSlot = (section, day) => {
     if (section === 'dinner') setDinners(p => ({ ...p, [day]: null }))
     else if (section === 'lauren') setLaurenLunches(p => ({ ...p, [day]: null }))
     else setMaxLunches(p => ({ ...p, [day]: null }))
   }
+
+  const clearOneFromSlot = (section, day, value) => {
+    const updater = prev => {
+      const cur = prev[day]
+      if (Array.isArray(cur)) {
+        const next = cur.filter(v => v !== value)
+        return { ...prev, [day]: next.length === 0 ? null : next.length === 1 ? next[0] : next }
+      }
+      return { ...prev, [day]: null }
+    }
+    if (section === 'dinner') setDinners(updater)
+    else if (section === 'lauren') setLaurenLunches(updater)
+    else setMaxLunches(updater)
+  }
   const openPicker = (section, day) => { setPicker({ section, day }); setPickerText('') }
   const toggleChk = key => setChecked(p => ({ ...p, [key]: !p[key] }))
   const addCustom = () => { if (!customInput.trim()) return; setCustomItems(p => [...p, { id:Date.now().toString(), name:customInput.trim() }]); setCustomInput('') }
   const removeCustom = id => { setCustomItems(p => p.filter(x => x.id !== id)); setChecked(p => { const n={...p}; delete n[`custom_${id}`]; return n }) }
+  const deleteIngredient = key => setDeletedIngredients(p => ({ ...p, [key]: true }))
   const moveRecipe = (index, dir) => {
     const newList = [...recipes]
     const target = index + dir
@@ -194,7 +231,7 @@ export default function App() {
 
           {/* ── LIBRARY ── */}
           {tab === 0 && <>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem' }}>
               <p style={{ color:C.light, fontSize:'0.82rem' }}>{recipes.length} recipes saved</p>
               <div style={{ display:'flex', gap:'0.5rem' }}>
                 <Btn variant={reorderMode ? 'selected' : 'outline'} onClick={() => setReorderMode(p => !p)} style={{ fontSize:'0.78rem', padding:'0.45rem 0.75rem' }}>
@@ -203,28 +240,36 @@ export default function App() {
                 {!reorderMode && <Btn onClick={() => setShowAdd(true)}>+ Add Recipe</Btn>}
               </div>
             </div>
+            <input
+              value={librarySearch}
+              onChange={e => setLibrarySearch(e.target.value)}
+              placeholder="🔍  Search recipes..."
+              style={{ ...inp, width:'100%', marginBottom:'1rem', fontSize:'0.87rem' }}
+            />
 
             {reorderMode ? (
               // REORDER MODE — single column list with up/down arrows
               <div>
-                {recipes.map((r, index) => (
+                {recipes.filter(r => !librarySearch || r.name.toLowerCase().includes(librarySearch.toLowerCase())).map((r, index) => {
+                  const realIndex = recipes.indexOf(r)
+                  return (
                   <div key={r.id} style={{ display:'flex', alignItems:'center', gap:'0.75rem', background:C.card, borderRadius:12, padding:'0.75rem', border:`1px solid ${C.border}`, marginBottom:'0.5rem' }}>
                     <span style={{ fontSize:'1.4rem', flexShrink:0 }}>{r.emoji}</span>
                     <p style={{ flex:1, fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.88rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.name}</p>
                     <div style={{ display:'flex', flexDirection:'column', gap:'0.2rem', flexShrink:0 }}>
-                      <button onClick={() => moveRecipe(index, -1)} disabled={index === 0}
-                        style={{ background:index===0?C.warm:C.terrabg, border:`1px solid ${index===0?C.border:'#e8846a'}`, borderRadius:6, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:index===0?'default':'pointer', color:index===0?C.light:C.terra, fontSize:'0.8rem', fontWeight:700 }}>↑</button>
-                      <button onClick={() => moveRecipe(index, 1)} disabled={index === recipes.length - 1}
-                        style={{ background:index===recipes.length-1?C.warm:C.terrabg, border:`1px solid ${index===recipes.length-1?C.border:'#e8846a'}`, borderRadius:6, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:index===recipes.length-1?'default':'pointer', color:index===recipes.length-1?C.light:C.terra, fontSize:'0.8rem', fontWeight:700 }}>↓</button>
+                      <button onClick={() => moveRecipe(realIndex, -1)} disabled={realIndex === 0}
+                        style={{ background:realIndex===0?C.warm:C.terrabg, border:`1px solid ${realIndex===0?C.border:'#e8846a'}`, borderRadius:6, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:realIndex===0?'default':'pointer', color:realIndex===0?C.light:C.terra, fontSize:'0.8rem', fontWeight:700 }}>↑</button>
+                      <button onClick={() => moveRecipe(realIndex, 1)} disabled={realIndex === recipes.length - 1}
+                        style={{ background:realIndex===recipes.length-1?C.warm:C.terrabg, border:`1px solid ${realIndex===recipes.length-1?C.border:'#e8846a'}`, borderRadius:6, width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', cursor:realIndex===recipes.length-1?'default':'pointer', color:realIndex===recipes.length-1?C.light:C.terra, fontSize:'0.8rem', fontWeight:700 }}>↓</button>
                     </div>
                   </div>
-                ))}
+                )})}
                 <p style={{ color:C.light, fontSize:'0.78rem', textAlign:'center', marginTop:'0.75rem' }}>Tap ↑ ↓ to reorder · tap Done when finished</p>
               </div>
             ) : (
               // NORMAL GRID MODE
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem' }}>
-                {recipes.map(r => (
+                {recipes.filter(r => !librarySearch || r.name.toLowerCase().includes(librarySearch.toLowerCase())).map(r => (
                   <div key={r.id} className={confirmDelete===r.id?'':'rc'} style={{ background:C.card, borderRadius:16, padding:'1rem', border:`1px solid ${confirmDelete===r.id?'#e8846a':C.border}`, boxShadow:'0 1px 4px rgba(74,55,40,0.05)', transition:'all 0.2s', minHeight:155 }}>
                     {confirmDelete === r.id ? (
                       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', minHeight:135, gap:'0.5rem', textAlign:'center' }}>
@@ -258,13 +303,13 @@ export default function App() {
           {/* ── THIS WEEK ── */}
           {tab === 1 && <>
             <Section label="🍽️ Dinners">
-              {DAYS.map(day => <MealSlot key={day} day={day} value={dinners[day]} recipes={recipes} onAdd={() => openPicker('dinner', day)} onClear={() => clearSlot('dinner', day)} />)}
+              {DAYS.map(day => <MealSlot key={day} day={day} value={dinners[day]} recipes={recipes} onAdd={() => openPicker('dinner', day)} onClear={() => clearSlot('dinner', day)} onClearOne={v => clearOneFromSlot('dinner', day, v)} />)}
             </Section>
             <Section label="🥗 Lauren's Lunches">
-              {DAYS.map(day => <MealSlot key={day} day={day} value={laurenLunches[day]} recipes={recipes} onAdd={() => openPicker('lauren', day)} onClear={() => clearSlot('lauren', day)} />)}
+              {DAYS.map(day => <MealSlot key={day} day={day} value={laurenLunches[day]} recipes={recipes} onAdd={() => openPicker('lauren', day)} onClear={() => clearSlot('lauren', day)} onClearOne={v => clearOneFromSlot('lauren', day, v)} />)}
             </Section>
             <Section label="🥙 Max's Lunches">
-              {DAYS.map(day => <MealSlot key={day} day={day} value={maxLunches[day]} recipes={recipes} onAdd={() => openPicker('max', day)} onClear={() => clearSlot('max', day)} />)}
+              {DAYS.map(day => <MealSlot key={day} day={day} value={maxLunches[day]} recipes={recipes} onAdd={() => openPicker('max', day)} onClear={() => clearSlot('max', day)} onClearOne={v => clearOneFromSlot('max', day, v)} />)}
             </Section>
             {Object.values(dinners).some(Boolean) && <Btn onClick={() => setTab(2)} style={{ width:'100%', marginTop:'0.5rem', padding:'0.875rem', fontSize:'0.88rem', borderRadius:12 }}>View Grocery List →</Btn>}
           </>}
@@ -304,7 +349,7 @@ export default function App() {
                           <GrocRow key={item.key} item={item} chk={false}
                             catId={categoryOverrides[item.key] || getCategory(item.name)}
                             onToggle={() => toggleChk(item.key)}
-                            onRemove={item.custom ? () => removeCustom(item.id) : null}
+                            onRemove={item.custom ? () => removeCustom(item.id) : () => deleteIngredient(item.key)}
                             onCatTap={() => setCatPicker(item)}
                           />
                         ))}
@@ -320,7 +365,7 @@ export default function App() {
                         <GrocRow key={item.key} item={item} chk={true}
                           catId={categoryOverrides[item.key] || getCategory(item.name)}
                           onToggle={() => toggleChk(item.key)}
-                          onRemove={item.custom ? () => removeCustom(item.id) : null}
+                          onRemove={item.custom ? () => removeCustom(item.id) : () => deleteIngredient(item.key)}
                           onCatTap={() => setCatPicker(item)}
                         />
                       ))}
@@ -368,14 +413,15 @@ export default function App() {
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.4rem' }}>
                 {DAYS.map(day => {
                   const cur = map[day]
-                  const isThis = cur === assignRecipe.id
-                  const takenBy = cur && cur !== assignRecipe.id ? (recipes.find(r => r.id === cur)?.name || cur) : null
+                  const curArr = Array.isArray(cur) ? cur : cur ? [cur] : []
+                  const isThis = curArr.includes(assignRecipe.id)
+                  const others = curArr.filter(v => v !== assignRecipe.id).map(v => recipes.find(r => r.id === v)?.name || v)
                   return (
                     <button key={day} onClick={() => { assignDay(section, day, assignRecipe.id); setAssignRecipe(null) }}
                       style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', background:isThis?C.terrabg:C.warm, border:`1px solid ${isThis?'#e8846a':C.border}`, borderRadius:10, padding:'0.55rem 0.7rem', cursor:'pointer', textAlign:'left' }}>
                       <span style={{ color:isThis?C.terra:C.light, fontSize:'0.65rem', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em' }}>{day.slice(0,3)}</span>
-                      <span style={{ color:isThis?C.terra:takenBy?C.mid:C.light, fontSize:'0.75rem', marginTop:'0.15rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>
-                        {isThis ? '✓ assigned' : takenBy ? `${takenBy.slice(0,14)}${takenBy.length>14?'…':''}` : 'open'}
+                      <span style={{ color:isThis?C.terra:others.length>0?C.mid:C.light, fontSize:'0.75rem', marginTop:'0.15rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>
+                        {isThis ? '✓ assigned' : others.length > 0 ? others.map(n => n.slice(0,10)).join(', ') : 'open'}
                       </span>
                     </button>
                   )
@@ -390,15 +436,16 @@ export default function App() {
           <h2 style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'1.1rem', marginBottom:'0.25rem' }}>
             {picker.section === 'dinner' ? '🍽️ Dinner' : picker.section === 'lauren' ? "🥗 Lauren's Lunch" : "🥙 Max's Lunch"} — {picker.day}
           </h2>
-          <p style={{ color:C.light, fontSize:'0.78rem', marginBottom:'1rem' }}>Type anything or pick from your library</p>
+          <p style={{ color:C.light, fontSize:'0.78rem', marginBottom:'1rem' }}>Pick one or more recipes, or type anything</p>
           <div style={{ display:'flex', gap:'0.5rem', marginBottom:'1rem' }}>
             <input value={pickerText} onChange={e => setPickerText(e.target.value)} onKeyDown={e => e.key==='Enter'&&pickerText.trim()&&assignDay(picker.section,picker.day,pickerText.trim())} placeholder="Type a meal name..." style={{ ...inp, flex:1 }} />
-            <Btn onClick={() => pickerText.trim()&&assignDay(picker.section,picker.day,pickerText.trim())} disabled={!pickerText.trim()} style={{ padding:'0.5rem 0.75rem', borderRadius:9, flexShrink:0 }}>Set</Btn>
+            <Btn onClick={() => { pickerText.trim()&&assignDay(picker.section,picker.day,pickerText.trim()); setPickerText('') }} disabled={!pickerText.trim()} style={{ padding:'0.5rem 0.75rem', borderRadius:9, flexShrink:0 }}>Add</Btn>
           </div>
           <p style={{ color:C.light, fontSize:'0.73rem', marginBottom:'0.625rem', textTransform:'uppercase', letterSpacing:'0.08em', textAlign:'center' }}>— or pick from library —</p>
           {recipes.map(r => {
             const cur = picker.section==='dinner'?dinners[picker.day]:picker.section==='lauren'?laurenLunches[picker.day]:maxLunches[picker.day]
-            const isSel = cur === r.id
+            const curArr = Array.isArray(cur) ? cur : cur ? [cur] : []
+            const isSel = curArr.includes(r.id)
             return (
               <button key={r.id} onClick={() => assignDay(picker.section,picker.day,r.id)} style={{ display:'flex', alignItems:'center', gap:'0.75rem', width:'100%', background:isSel?C.terrabg:C.warm, border:`1px solid ${isSel?'#e8846a':C.border}`, borderRadius:12, padding:'0.75rem', marginBottom:'0.4rem', cursor:'pointer', textAlign:'left' }}>
                 <span style={{ fontSize:'1.3rem', flexShrink:0 }}>{r.emoji}</span>
@@ -406,10 +453,11 @@ export default function App() {
                   <p style={{ fontFamily:"'Playfair Display',serif", color:C.brown, fontSize:'0.88rem' }}>{r.name}</p>
                   <p style={{ color:C.light, fontSize:'0.72rem', marginTop:'0.1rem' }}>{r.description}</p>
                 </div>
-                {isSel && <span style={{ color:C.terra, fontSize:'0.8rem', fontWeight:600, flexShrink:0 }}>✓</span>}
+                {isSel && <span style={{ color:C.terra, fontSize:'0.85rem', fontWeight:700, flexShrink:0 }}>✓</span>}
               </button>
             )
           })}
+          <Btn onClick={() => { setPicker(null); setPickerText('') }} style={{ width:'100%', marginTop:'0.875rem', padding:'0.75rem', fontSize:'0.88rem', borderRadius:12 }}>Done</Btn>
         </Modal>}
 
         {/* ── RECIPE DETAIL MODAL ── */}
@@ -490,22 +538,33 @@ export default function App() {
   )
 }
 
-function MealSlot({ day, value, recipes, onAdd, onClear }) {
-  const recipe = value && recipes.find(r => r.id === value)
-  const label = recipe ? recipe.name : (typeof value === 'string' && value) ? value : null
-  const emoji = recipe ? recipe.emoji : null
+function MealSlot({ day, value, recipes, onAdd, onClear, onClearOne }) {
+  const values = value ? (Array.isArray(value) ? value : [value]) : []
+  const entries = values.map(v => {
+    const recipe = recipes.find(r => r.id === v)
+    return { id: v, recipe, label: recipe ? recipe.name : (typeof v === 'string' ? v : null), emoji: recipe?.emoji || null }
+  }).filter(e => e.label)
+
   return (
-    <div className="day-row" style={{ display:'flex', alignItems:'center', gap:'0.75rem', background:C.card, borderRadius:12, padding:'0.75rem 0.875rem', border:`1px solid ${C.border}`, marginBottom:'0.5rem', transition:'background 0.15s' }}>
-      <span style={{ background:label?C.terrabg:C.warm, color:label?C.terra:C.light, fontSize:'0.65rem', fontWeight:600, padding:'0.28rem 0.5rem', borderRadius:7, whiteSpace:'nowrap', letterSpacing:'0.05em', textTransform:'uppercase', flexShrink:0, minWidth:52, textAlign:'center' }}>{day.slice(0,3)}</span>
-      {label ? <>
-        {emoji && <span style={{ fontSize:'1.1rem', flexShrink:0 }}>{emoji}</span>}
-        <p style={{ flex:1, fontFamily:emoji?"'Playfair Display',serif":"'DM Sans',sans-serif", color:C.brown, fontSize:'0.85rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</p>
-        <button onClick={onAdd} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.72rem', fontFamily:"'DM Sans',sans-serif", flexShrink:0, padding:'0 0.2rem' }}>Change</button>
-        <button onClick={onClear} style={{ background:'none', border:'none', color:'#ccc', fontSize:'0.9rem', flexShrink:0, padding:'0 0.1rem' }}>×</button>
-      </> : <>
-        <p style={{ flex:1, color:C.light, fontFamily:"'DM Sans',sans-serif", fontSize:'0.82rem', fontStyle:'italic' }}>Nothing planned</p>
-        <button onClick={onAdd} style={{ background:C.warm, border:`1px solid ${C.border}`, borderRadius:7, padding:'0.3rem 0.6rem', color:C.mid, fontFamily:"'DM Sans',sans-serif", fontSize:'0.72rem', flexShrink:0, cursor:'pointer' }}>+ Add</button>
-      </>}
+    <div className="day-row" style={{ background:C.card, borderRadius:12, padding:'0.75rem 0.875rem', border:`1px solid ${C.border}`, marginBottom:'0.5rem', transition:'background 0.15s' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:'0.75rem' }}>
+        <span style={{ background:entries.length>0?C.terrabg:C.warm, color:entries.length>0?C.terra:C.light, fontSize:'0.65rem', fontWeight:600, padding:'0.28rem 0.5rem', borderRadius:7, whiteSpace:'nowrap', letterSpacing:'0.05em', textTransform:'uppercase', flexShrink:0, minWidth:52, textAlign:'center' }}>{day.slice(0,3)}</span>
+        {entries.length === 0 ? <>
+          <p style={{ flex:1, color:C.light, fontFamily:"'DM Sans',sans-serif", fontSize:'0.82rem', fontStyle:'italic' }}>Nothing planned</p>
+          <button onClick={onAdd} style={{ background:C.warm, border:`1px solid ${C.border}`, borderRadius:7, padding:'0.3rem 0.6rem', color:C.mid, fontFamily:"'DM Sans',sans-serif", fontSize:'0.72rem', flexShrink:0, cursor:'pointer' }}>+ Add</button>
+        </> : <>
+          <div style={{ flex:1, minWidth:0 }}>
+            {entries.map((e, i) => (
+              <div key={e.id} style={{ display:'flex', alignItems:'center', gap:'0.4rem', marginBottom: i < entries.length-1 ? '0.25rem' : 0 }}>
+                {e.emoji && <span style={{ fontSize:'1rem', flexShrink:0 }}>{e.emoji}</span>}
+                <p style={{ flex:1, fontFamily:e.emoji?"'Playfair Display',serif":"'DM Sans',sans-serif", color:C.brown, fontSize:'0.82rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{e.label}</p>
+                <button onClick={() => onClearOne(e.id)} style={{ background:'none', border:'none', color:'#ccc', fontSize:'0.85rem', flexShrink:0, cursor:'pointer', padding:'0 0.1rem', lineHeight:1 }}>×</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={onAdd} style={{ background:'none', border:`1px solid ${C.border}`, borderRadius:7, padding:'0.25rem 0.5rem', color:C.terra, fontFamily:"'DM Sans',sans-serif", fontSize:'0.7rem', flexShrink:0, cursor:'pointer', whiteSpace:'nowrap' }}>+ Add</button>
+        </>}
+      </div>
     </div>
   )
 }
