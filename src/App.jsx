@@ -108,6 +108,7 @@ export default function App() {
   useEffect(() => { if (loaded) dbSet('deleted_ings', JSON.stringify(deletedIngredients)) }, [deletedIngredients, loaded])
 
   const grocery = buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems, deletedIngredients)
+  const hiddenCount = buildGrocery(recipes, dinners, laurenLunches, maxLunches, customItems, {}).length - grocery.length
   const uncheckedG = grocery.filter(i => !checked[i.key])
   const checkedG = grocery.filter(i => checked[i.key])
   const mealCount = [
@@ -117,6 +118,24 @@ export default function App() {
   ].filter(Boolean).length
 
   const assignDay = (section, day, value) => {
+    // When a recipe is newly added to a day, make sure its ingredients show up on the
+    // grocery list: un-remove any that were removed with × before, and un-check any
+    // left "In Basket" from a previous trip.
+    const sectionMap = section === 'dinner' ? dinners : section === 'lauren' ? laurenLunches : maxLunches
+    const curVal = sectionMap[day]
+    const curArr = Array.isArray(curVal) ? curVal : curVal ? [curVal] : []
+    const recipe = recipes.find(r => r.id === value)
+    if (recipe && !curArr.includes(value)) {
+      const keys = recipe.ingredients.map(i => i.name.toLowerCase().trim())
+      const clearKeys = p => {
+        if (!keys.some(k => p[k])) return p
+        const n = { ...p }
+        keys.forEach(k => delete n[k])
+        return n
+      }
+      setDeletedIngredients(clearKeys)
+      setChecked(clearKeys)
+    }
     const updater = prev => {
       const cur = prev[day]
       // If it's an array already, toggle the value in/out
@@ -325,7 +344,10 @@ export default function App() {
             </div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.875rem' }}>
               <p style={{ color:C.light, fontSize:'0.82rem' }}>{grocery.length === 0 ? 'Plan dinners or add items above' : `${uncheckedG.length} remaining · ${checkedG.length} in basket`}</p>
-              {checkedG.length > 0 && <button onClick={() => setChecked({})} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.78rem', fontFamily:"'DM Sans',sans-serif", cursor:'pointer' }}>Reset all</button>}
+              <div style={{ display:'flex', gap:'0.75rem' }}>
+                {hiddenCount > 0 && <button onClick={() => setDeletedIngredients({})} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.78rem', fontFamily:"'DM Sans',sans-serif", cursor:'pointer' }}>Restore {hiddenCount} removed</button>}
+                {checkedG.length > 0 && <button onClick={() => setChecked({})} style={{ background:'none', border:'none', color:C.terra, fontSize:'0.78rem', fontFamily:"'DM Sans',sans-serif", cursor:'pointer' }}>Reset all</button>}
+              </div>
             </div>
             {grocery.length === 0
               ? <Empty emoji="🛒" text="Plan your dinners and your grocery list builds automatically." cta="Plan This Week" onCta={() => setTab(1)} />
