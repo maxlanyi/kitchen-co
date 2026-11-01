@@ -70,7 +70,7 @@ export function buildGrocery({ recipes, plans, customItems = [], hiddenKeys = {}
   const all = [...map.values()].map(i => ({ ...i, qty:combineEntries(i.entries) })).sort((a, b) => a.name.localeCompare(b.name))
   const items = all.filter(i => !hiddenKeys[i.key])
   const hidden = all.filter(i => hiddenKeys[i.key])
-  for (const ci of customItems) items.push({ key:`custom_${ci.id}`, name:ci.name, qty:'', entries:[], recipes:[], custom:true, id:ci.id })
+  for (const ci of customItems) items.push({ key:`custom_${ci.id}`, name:ci.name, qty:'', entries:[], recipes:[], custom:true, id:ci.id, by:ci.by })
   return { items, hidden }
 }
 

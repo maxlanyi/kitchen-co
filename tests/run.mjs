@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { parseAmount, formatAmount, combineEntries, parseIngredientLine, ingredientKey } from '../src/lib/ingredients.js'
 import { getCategory, buildGrocery } from '../src/lib/grocery.js'
 import { extractRecipe } from '../src/lib/recipeImport.js'
+import { splitItems, planVoiceAdd, spokenReply } from '../src/lib/voiceAdd.js'
 
 let passed = 0
 const t = (name, fn) => { try { fn(); passed++ } catch (e) { console.error('✗', name, '\n ', e.message); process.exitCode = 1 } }
@@ -59,6 +60,33 @@ t('extractRecipe from JSON-LD', () => {
   assert.deepEqual(r.ingredients[0], { amount:'1', unit:'lb', name:'Chicken thighs' })
   assert.equal(r.instructions, '1. Season the chicken.\n2. Cook the rice.')
   assert.equal(extractRecipe('<html>no recipe</html>'), null)
+})
+
+t('splitItems: splitting and keeping combos', () => {
+  assert.deepEqual(splitItems('paper towels and eggs'), ['Paper towels', 'Eggs'])
+  assert.deepEqual(splitItems('Mac and cheese and milk.'), ['Mac and cheese', 'Milk'])
+  assert.deepEqual(splitItems('salt and pepper, half and half & bananas'), ['Salt and pepper', 'Half and half', 'Bananas'])
+  assert.deepEqual(splitItems('add some milk to the grocery list'), ['Milk'])
+  assert.deepEqual(splitItems('Ben & Jerry’s and a dozen eggs'.replace('’', "'")), ["Ben & Jerry's", 'Dozen eggs'])
+  assert.deepEqual(splitItems('cheddar, Cheddar'), ['Cheddar'])
+  assert.deepEqual(splitItems('   '), [])
+  assert.deepEqual(splitItems('Macaroni and cheese'), ['Macaroni and cheese'])
+  assert.deepEqual(splitItems('cucumbers and cheese and crackers'), ['Cucumbers', 'Cheese and crackers'])
+})
+t('planVoiceAdd: dedupes against the list, re-adds bought items, tags who', () => {
+  const data = {
+    recipes:[{ id:'a', name:'A', ingredients:[{ name:'Eggs', amount:'12', unit:'' }] }],
+    dinners:{ Monday:['a'] }, lauren:{}, max:{},
+    customItems:[{ id:'1', name:'Milk' }, { id:'2', name:'Bread' }],
+    checked:{ custom_2:true }, hidden:{},
+  }
+  const r = planVoiceAdd('egg and paper towels and bread and milk', 'Max', data, 100)
+  assert.deepEqual(r.added, ['Paper towels', 'Bread'])
+  assert.deepEqual(r.already, ['Egg', 'Milk'])
+  assert.deepEqual(r.customItems.map(c => c.name), ['Milk', 'Paper towels', 'Bread'])
+  assert.equal(r.customItems[1].by, 'Max')
+  assert.equal(spokenReply(r), 'Added paper towels and bread. Egg and milk are already on the list.')
+  assert.equal(spokenReply({ added:[], already:[] }), 'I didn’t catch anything to add.')
 })
 
 console.log(`${passed} test groups passed${process.exitCode ? ' (with failures above)' : ''}`)

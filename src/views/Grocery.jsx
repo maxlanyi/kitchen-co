@@ -21,7 +21,7 @@ export default function Grocery({ items, hidden, checked, catOf, onToggle, onRem
           <span className="box">{isDone && '✓'}</span>
           <span className="g-text">
             <span className="g-name">{item.name}</span>{item.qty && <span className="g-qty">{item.qty}</span>}
-            <span className="g-sub" style={{ display:'block' }}>{item.custom ? 'Added by hand' : item.recipes.join(', ')}</span>
+            <span className="g-sub" style={{ display:'block' }}>{item.custom ? (item.by ? `Added by ${item.by}` : 'Added by hand') : item.recipes.join(', ')}</span>
           </span>
         </button>
         <button className="cat-chip" onClick={() => onCatTap(item)} aria-label={`Section: ${cat.label}. Change`}>{cat.emoji}</button>
